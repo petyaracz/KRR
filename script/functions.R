@@ -4,10 +4,24 @@
 #   train_krr()   — fit on training data with LOO tuning, return best hyperparameters
 #   predict_krr() — predict on new data using supplied sigma and alpha
 #
+# Kernel: RBF / Gaussian kernel  K(x,y) = exp(-d(x,y)^2 / (2σ^2))
+#   where d(x,y) is the precomputed aligned phonological distance.
+#
+# Hyperparameter tuning: grid search over sigma (RBF bandwidth) and alpha
+#   (ridge regularisation strength).  The search minimises LOO RMSE or
+#   maximises LOO Pearson r, both evaluated in the (optionally link-transformed)
+#   target space.
+#
+# LOO efficiency: leave-one-out predictions are computed via the PRESS /
+#   hat-matrix formula without refitting for each fold:
+#   loo_i = y_i - (y_i - ŷ_i) / (1 - H_ii)
+#
 # Logit link note: unlike GLM binomial, KRR is not likelihood-based.
 # With link = "logit", targets are logit-transformed before fitting and
 # predictions are inverse-logit-transformed back. Exact 0/1 targets are
 # clamped to [epsilon, 1 - epsilon] before transformation.
+#
+# Dependency: tidyverse
 
 library(tidyverse)
 

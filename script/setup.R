@@ -6,11 +6,17 @@ library(tidyverse)
 
 # -- read -- #
 
+# Download corpus data (real Hungarian ik-verbs) from the Racz2024 repository
 train = read_tsv('https://raw.githubusercontent.com/petyaracz/Racz2024/refs/heads/main/resource/real_words/ik_verbs/ikes_pairs_webcorpus2.tsv')
+# Download experimental data (nonword ratings) from the Racz2024 repository
 test = read_tsv('https://raw.githubusercontent.com/petyaracz/Racz2024/refs/heads/main/exp_data/baseline/baseline_tidy_proc.tsv')
 
 # -- transcribe -- #
 
+# Map Hungarian orthographic digraphs to single phonological symbols so that
+# each character corresponds to exactly one segment:
+#   cs → č, sz → ß (temp), zs → ž, ty → ṯ, gy → ḏ, ny → ṉ, ly → j
+#   s  → š, ß  → s  (completes the two-step sz → s substitution)
 train = train |> 
   mutate(
     lemma = str_replace_all(base, c('cs' = 'č', 'sz' = 'ß', 'zs' = 'ž', 'ty' = 'ṯ', 'gy' = 'ḏ', 'ny' = 'ṉ', 'ly' = 'j', 's' = 'š', 'ß' = 's')),
@@ -23,15 +29,16 @@ test = test |>
 
 # -- setup --#
 
-# narrow
+# Keep only the lakok/lakom alternation (one of several ik-verb variation types)
 test = test[test$variation == 'lakok/lakom',]
 
-# outcome
+# Convert log-odds to probability: p = 1 / (1 + exp(-log_odds))
 train$p = plogis(train$log_odds)
 test$p = plogis(test$log_odds)
 
 
-# forms
+# Collect unique lemma forms from both sets for phonological distance
+# computation via JANET (see dat/word_distances.tsv.gz)
 out1 = train |> 
   select(lemma)
 
