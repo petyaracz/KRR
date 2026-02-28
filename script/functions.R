@@ -105,7 +105,7 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
                       link = c("identity", "logit"),
                       criterion = c("rmse", "r"),
                       epsilon = 0.001,
-                      sigma_grid = c(1, 2, 3, 4, 5, 8),
+                      sigma_grid = c(1, 2, 3, 4, 5, 8, 16, 32, 64),
                       alpha_grid = c(1, 10, 100, 1000)) {
   
   link <- match.arg(link)
