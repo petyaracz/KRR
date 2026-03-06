@@ -207,3 +207,107 @@ predict_krr <- function(train_data, test_data, dist_df,
   
   out
 }
+
+# nice checking function for various failure modes of the data
+check_krr_inputs = function(train, test = NULL, dist, 
+                            word_col = "transcription2", 
+                            outcome_col = "prop_a",
+                            link = "identity") {
+  
+  ok = TRUE
+  
+  train_words = train[[word_col]]
+  dist_words = unique(c(dist$word1, dist$word2))
+  
+  # 1. Duplicate words in train
+  dupes_train = train_words[duplicated(train_words)]
+  if (length(dupes_train) > 0) {
+    ok = FALSE
+    cat(sprintf("FAIL: %d duplicate values in train$%s\n", length(dupes_train), word_col))
+    cat("  ", head(dupes_train, 5), "\n")
+  }
+  
+  # 2. Duplicate words in test
+  if (!is.null(test)) {
+    test_words = test[[word_col]]
+    dupes_test = test_words[duplicated(test_words)]
+    if (length(dupes_test) > 0) {
+      ok = FALSE
+      cat(sprintf("FAIL: %d duplicate values in test$%s\n", length(dupes_test), word_col))
+      cat("  ", head(dupes_test, 5), "\n")
+    }
+  }
+  
+  # 3. Train words missing from distance table
+  missing_train = setdiff(train_words, dist_words)
+  if (length(missing_train) > 0) {
+    ok = FALSE
+    cat(sprintf("FAIL: %d train words missing from dist\n", length(missing_train)))
+    cat("  ", head(missing_train, 5), "\n")
+  }
+  
+  # 4. Test words missing from distance table
+  if (!is.null(test)) {
+    missing_test = setdiff(test_words, dist_words)
+    if (length(missing_test) > 0) {
+      ok = FALSE
+      cat(sprintf("FAIL: %d test words missing from dist\n", length(missing_test)))
+      cat("  ", head(missing_test, 5), "\n")
+    }
+  }
+  
+  # 5. Incomplete pairwise distances (train)
+  n_train = length(train_words)
+  n_pairs_train = dist |> 
+    filter(word1 %in% train_words, word2 %in% train_words) |> 
+    nrow()
+  if (n_pairs_train < n_train^2) {
+    ok = FALSE
+    cat(sprintf("FAIL: train distance pairs incomplete (%d of %d expected)\n", 
+                n_pairs_train, n_train^2))
+    # check self-pairs specifically
+    n_self = dist |> 
+      filter(word1 %in% train_words, word1 == word2) |> 
+      nrow()
+    if (n_self < n_train) {
+      cat(sprintf("  -> %d of %d self-pairs (diagonal) missing\n", 
+                  n_train - n_self, n_train))
+    }
+  }
+  
+  # 6. Incomplete cross-distances (test x train)
+  if (!is.null(test)) {
+    n_test = length(test_words)
+    n_pairs_cross = dist |> 
+      filter(word1 %in% test_words, word2 %in% train_words) |> 
+      nrow()
+    if (n_pairs_cross < n_test * n_train) {
+      ok = FALSE
+      cat(sprintf("FAIL: cross distance pairs incomplete (%d of %d expected)\n", 
+                  n_pairs_cross, n_test * n_train))
+    }
+  }
+  
+  # 7. Outcome values incompatible with logit link
+  y = train[[outcome_col]]
+  if (link == "logit") {
+    n_zero = sum(y == 0, na.rm = TRUE)
+    n_one = sum(y == 1, na.rm = TRUE)
+    if (n_zero + n_one > 0) {
+      ok = FALSE
+      cat(sprintf("FAIL: logit link but outcome has %d zeros and %d ones (-> Inf)\n", 
+                  n_zero, n_one))
+    }
+  }
+  
+  # 8. NAs in outcome
+  n_na = sum(is.na(y))
+  if (n_na > 0) {
+    ok = FALSE
+    cat(sprintf("FAIL: %d NAs in train$%s\n", n_na, outcome_col))
+  }
+  
+  if (ok) cat("All checks passed.\n")
+  
+  invisible(ok)
+}

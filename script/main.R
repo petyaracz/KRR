@@ -22,6 +22,11 @@ train = train |>
   slice(1) |> 
   ungroup()
 
+# -- check -- #
+
+# The main functions will spit inscrutable matrix algebra errors at you if training, test, and word distances don't line up. this might happen if there are repeated things in there, or missing pairs, and also if your outcome variable isn't quite right. this function checks for uh some of that.
+check_krr_inputs(train, test, dist, word_col = 'lemma', outcome_col = 'p', link = 'logit')
+
 # -- model -- #
 
 # Train KRR with LOO hyperparameter tuning on corpus data.
