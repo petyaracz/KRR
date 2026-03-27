@@ -61,3 +61,4 @@ MIT — see `LICENSE`.
 
 - [JANET](https://github.com/petyaracz/JANET) — aligned phonological distance computation
 - [Racz2024](https://github.com/petyaracz/Racz2024) — source data for the Hungarian _lakok/lakom_ variation
+- ex: various examples from other projects, with slightly adapted scripts, for reference.

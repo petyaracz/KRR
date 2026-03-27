@@ -108,6 +108,9 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
                       sigma_grid = c(1, 2, 3, 4, 5, 8, 16, 32, 64),
                       alpha_grid = c(1, 10, 100, 1000)) {
   
+  if (!outcome_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", outcome_col))
+  if (!word_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", word_col))
+  
   link <- match.arg(link)
   criterion <- match.arg(criterion)
   
@@ -174,6 +177,10 @@ predict_krr <- function(train_data, test_data, dist_df,
                         sigma, alpha,
                         link = c("identity", "logit"),
                         epsilon = 0.001) {
+  
+  
+  if (!outcome_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", outcome_col))
+  if (!word_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", word_col))
   
   link <- match.arg(link)
   
