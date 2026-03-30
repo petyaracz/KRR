@@ -302,7 +302,7 @@ check_krr_inputs = function(train, test = NULL, dist,
     n_one = sum(y == 1, na.rm = TRUE)
     if (n_zero + n_one > 0) {
       ok = FALSE
-      cat(sprintf("FAIL: logit link but outcome has %d zeros and %d ones (-> Inf)\n", 
+      cat(sprintf("WARNING: logit link but outcome has %d zeros and %d ones (-> clamped by epsilon during fitting)\n",
                   n_zero, n_one))
     }
   }
