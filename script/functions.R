@@ -179,8 +179,8 @@ predict_krr <- function(train_data, test_data, dist_df,
                         epsilon = 0.001) {
   
   
-  if (!outcome_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", outcome_col))
-  if (!word_col %in% names(data)) stop(sprintf("Column '%s' not found in data.", word_col))
+  if (!outcome_col %in% names(train_data)) stop(sprintf("Column '%s' not found in data.", outcome_col))
+  if (!word_col %in% names(train_data)) stop(sprintf("Column '%s' not found in data.", word_col))
   
   link <- match.arg(link)
   
