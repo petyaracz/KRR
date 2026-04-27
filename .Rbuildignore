@@ -1,0 +1,6 @@
+^script$
+^ex$
+^dat$
+^\.github$
+^.*\.Rproj$
+^\.Rproj\.user$

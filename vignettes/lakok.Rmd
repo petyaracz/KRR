@@ -1,0 +1,146 @@
+---
+title: "Hungarian lakok/lakom: a worked example"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Hungarian lakok/lakom: a worked example}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## Background
+
+Hungarian verbs ending in a labial consonant alternate between two first-person
+singular forms: *lakok* and *lakom*. Speakers show gradient preferences — some
+verbs strongly favour one form, others are variable. This vignette uses kernel
+ridge regression (KRR) on phonological similarity to predict those preferences
+for both attested corpus verbs and novel nonwords.
+
+Data come from [Rácz (2024)](https://github.com/petyaracz/Racz2024). See
+`system.file("scripts/setup.R", package = "krr")` for how the training data
+were derived from raw corpus counts and phonological distances computed via
+[JANET](https://github.com/petyaracz/JANET).
+
+## Load
+
+```{r load, message = FALSE}
+library(krr)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Data
+
+The package ships with three files in `inst/extdata/`:
+
+```{r data, message = FALSE}
+train <- read_tsv(system.file("extdata", "lakok_train.tsv",       package = "krr"))
+test  <- read_tsv(system.file("extdata", "lakok_test.tsv",        package = "krr"))
+dist  <- read_tsv(system.file("extdata", "word_distances.tsv.gz", package = "krr"))
+```
+
+`train` — corpus verbs with columns `lemma` (phonological form), `base`
+(orthographic lemma), `lemma_freq_corrected` (corpus frequency), and `p`
+(probability of *lakok*).
+
+`test` — nonword experimental ratings with `lemma` and `p`.
+
+`dist` — pairwise aligned phonological distances (`word1`, `word2`, `phon_dist`)
+for all lemmas in both datasets.
+
+## Prepare training data
+
+Each base lemma may appear in multiple inflected corpus forms. Keep the
+highest-frequency form per base so each base contributes exactly one training
+observation:
+
+```{r dedup}
+train <- train |>
+  group_by(base) |>
+  arrange(-lemma_freq_corrected) |>
+  slice(1) |>
+  ungroup()
+```
+
+## Check inputs
+
+`check_krr_inputs()` catches common failure modes — duplicate words, missing
+distance pairs, outcome values incompatible with the link — before they produce
+opaque matrix algebra errors:
+
+```{r check}
+check_krr_inputs(train, test, dist, word_col = "lemma", outcome_col = "p", link = "logit")
+```
+
+## Train
+
+`train_krr()` performs a grid search over the RBF bandwidth (`sigma`) and ridge
+penalty (`alpha`) using leave-one-out cross-validation. LOO predictions are
+computed efficiently via the hat-matrix shortcut (PRESS formula), so no refitting
+is needed per fold:
+
+```{r train, cache = TRUE}
+m <- train_krr(
+  train, dist,
+  word_col     = "lemma",
+  outcome_col  = "p",
+  link         = "logit",
+  criterion    = "rmse"
+)
+cat("Best sigma:", m$sigma, " Best alpha:", m$alpha, "\n")
+cat("LOO RMSE (logit space):", round(m$best_score, 4), "\n")
+```
+
+## LOO fit on training data
+
+```{r loo-plot, fig.width = 5, fig.height = 4}
+m$predictions |>
+  ggplot(aes(observed, predicted_loo)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(
+    x     = "Observed p(lakok)",
+    y     = "LOO-predicted p(lakok)",
+    title = "Training data: LOO fit"
+  )
+```
+
+## Predict nonwords
+
+```{r predict}
+preds <- predict_krr(
+  train, test, dist,
+  word_col    = "lemma",
+  outcome_col = "p",
+  sigma       = m$sigma,
+  alpha       = m$alpha,
+  link        = "logit"
+)
+```
+
+```{r pred-plot, fig.width = 5, fig.height = 4}
+preds |>
+  ggplot(aes(observed, predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(
+    x     = "Observed p(lakok) — nonword ratings",
+    y     = "Predicted p(lakok)",
+    title = "Nonword predictions"
+  )
+```
+
+```{r cor}
+with(preds, cor.test(observed, predicted))
+```
+
+If you can reproduce these results you are ready to apply `krr` to your own
+data. See `?train_krr` and `?predict_krr` for the full API, and the `ex/`
+directory in the package source for examples from other languages.

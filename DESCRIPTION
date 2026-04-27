@@ -1,0 +1,29 @@
+Package: krr
+Title: Kernel Ridge Regression for Phonological Analogy
+Version: 0.1.0
+Authors@R:
+    person("Peter", "Racz", email = "petermartonracz@gmail.com",
+           role = c("aut", "cre"))
+Description: Fit kernel ridge regression models on precomputed phonological
+    distances and predict morphological behaviour for new words. Supports
+    leave-one-out hyperparameter tuning, logit link transformation, and
+    input validation. Ships with a Hungarian lakok/lakom dataset as a
+    worked example.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends: R (>= 4.1.0)
+Imports:
+    dplyr,
+    tidyr,
+    purrr,
+    tibble
+Suggests:
+    testthat (>= 3.0.0),
+    readr,
+    ggplot2,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Config/testthat/edition: 3
