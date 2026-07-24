@@ -24,7 +24,7 @@ check_krr_inputs(
 
 \item{outcome_col}{Name of the outcome column (string).}
 
-\item{link}{\code{"identity"} or \code{"logit"}.}
+\item{link}{\code{"identity"}, \code{"logit"}, or \code{"binary"}.}
 }
 \value{
 \code{TRUE} invisibly if all checks pass, \code{FALSE} otherwise.

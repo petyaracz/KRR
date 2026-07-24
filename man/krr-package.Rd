@@ -15,5 +15,10 @@ See \code{vignette("lakok", package = "krr")} for a worked example.
 \author{
 \strong{Maintainer}: Peter Racz \email{petermartonracz@gmail.com}
 
+Authors:
+\itemize{
+  \item Peter Racz \email{petermartonracz@gmail.com}
+}
+
 }
 \keyword{internal}

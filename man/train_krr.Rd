@@ -9,9 +9,10 @@ train_krr(
   dist_df,
   word_col,
   outcome_col,
-  link = c("identity", "logit"),
-  criterion = c("rmse", "r"),
+  link = c("identity", "logit", "binary"),
+  criterion = c("rmse", "r", "accuracy"),
   epsilon = 0.001,
+  threshold = 0.5,
   sigma_grid = c(1, 2, 3, 4, 5, 8, 16, 32, 64),
   alpha_grid = c(1, 10, 100, 1000)
 )
@@ -27,13 +28,22 @@ train_krr(
 
 \item{outcome_col}{Name of the outcome column (string).}
 
-\item{link}{\code{"identity"} (default) or \code{"logit"}.}
+\item{link}{\code{"identity"} (default), \code{"logit"}, or \code{"binary"}.
+\code{"binary"} is for a genuine 0/1 label rather than a proportion; it fits
+in log-odds space like \code{"logit"} but expects exact 0/1 outcomes and adds
+a thresholded \code{predicted_class} column to \code{predictions}.}
 
-\item{criterion}{\code{"rmse"} (default) or \code{"r"}. Tuning metric for LOO.
-RMSE is computed in the link-transformed space.
-\code{"r"} uses Pearson correlation in link-transformed space.}
+\item{criterion}{\code{"rmse"} (default), \code{"r"}, or \code{"accuracy"}. Tuning metric
+for LOO. RMSE and \code{"r"} (Pearson correlation) are computed in the
+link-transformed space. \code{"accuracy"} compares LOO predictions
+thresholded at \code{threshold} against the raw outcome, and is only
+meaningful for \code{link = "binary"}.}
 
-\item{epsilon}{Clamping bound for logit link. Default 0.001.}
+\item{epsilon}{Clamping bound for logit/binary link. Default 0.001.}
+
+\item{threshold}{Cutoff applied to probability predictions to obtain
+\code{predicted_class} and to compute the \code{"accuracy"} criterion when
+\code{link = "binary"}. Default 0.5.}
 
 \item{sigma_grid}{Numeric vector of sigma values to try.}
 
@@ -43,11 +53,11 @@ RMSE is computed in the link-transformed space.
 A list with components:
 \itemize{
 \item \code{sigma}, \code{alpha}: best hyperparameters
-\item \code{best_score}: best tuning metric value (RMSE or r, in transformed space)
+\item \code{best_score}: best tuning metric value (RMSE, r, or accuracy)
 \item \code{tuning}: tibble of full tuning grid with score values
 \item \code{predictions}: tibble with word, observed (original scale),
-and predicted_loo (original scale)
-\item \code{link}, \code{criterion}, \code{epsilon}: stored for reference
+predicted_loo (original scale), and predicted_class (if \code{link = "binary"})
+\item \code{link}, \code{criterion}, \code{epsilon}, \code{threshold}: stored for reference
 }
 }
 \description{

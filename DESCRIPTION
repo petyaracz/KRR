@@ -12,7 +12,6 @@ Description: Fit kernel ridge regression models on precomputed phonological
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Depends: R (>= 4.1.0)
 Imports:
     dplyr,
@@ -27,3 +26,4 @@ Suggests:
     rmarkdown
 VignetteBuilder: knitr
 Config/testthat/edition: 3
+RoxygenNote: 7.3.3

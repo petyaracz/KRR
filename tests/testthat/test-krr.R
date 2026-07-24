@@ -1,7 +1,7 @@
 test_that("train_krr returns expected list structure", {
   m <- train_krr(.train, .train_dist, word_col = "word", outcome_col = "p", link = "logit")
   expect_named(m, c("sigma", "alpha", "best_score", "tuning", "predictions",
-                    "link", "criterion", "epsilon"))
+                    "link", "criterion", "epsilon", "threshold"))
   expect_gt(m$sigma, 0)
   expect_gt(m$alpha, 0)
 })
@@ -14,7 +14,7 @@ test_that("train_krr predictions are in [0, 1] with logit link", {
 test_that("train_krr works with identity link", {
   m <- train_krr(.train, .train_dist, word_col = "word", outcome_col = "p", link = "identity")
   expect_named(m, c("sigma", "alpha", "best_score", "tuning", "predictions",
-                    "link", "criterion", "epsilon"))
+                    "link", "criterion", "epsilon", "threshold"))
 })
 
 test_that("train_krr works with criterion = 'r'", {
@@ -106,4 +106,53 @@ test_that("identity link is a no-op", {
   transformed <- krr:::.apply_link(x, "identity", epsilon = 0.001)
   recovered   <- krr:::.apply_inverse_link(transformed, "identity")
   expect_equal(recovered, x)
+})
+
+test_that("train_krr with binary link returns predicted_class and warns on non-accuracy criterion", {
+  expect_warning(
+    m <- train_krr(.train_bin, .train_dist, word_col = "word", outcome_col = "y",
+                   link = "binary"),
+    "accuracy"
+  )
+  expect_named(m, c("sigma", "alpha", "best_score", "tuning", "predictions",
+                    "link", "criterion", "epsilon", "threshold"))
+  expect_true("predicted_class" %in% names(m$predictions))
+  expect_true(all(m$predictions$predicted_class %in% c(0, 1)))
+})
+
+test_that("train_krr with binary link and accuracy criterion does not warn", {
+  expect_no_warning(
+    m <- train_krr(.train_bin, .train_dist, word_col = "word", outcome_col = "y",
+                   link = "binary", criterion = "accuracy")
+  )
+  expect_gte(m$best_score, 0)
+  expect_lte(m$best_score, 1)
+})
+
+test_that("predict_krr with binary link returns predicted_class thresholded at 0.5", {
+  m <- train_krr(.train_bin, .train_dist, word_col = "word", outcome_col = "y",
+                 link = "binary", criterion = "accuracy")
+  preds <- predict_krr(.train_bin, .test_bin, .dist_full,
+                       word_col = "word", outcome_col = "y",
+                       sigma = m$sigma, alpha = m$alpha, link = "binary")
+  expect_true("predicted_class" %in% names(preds))
+  expect_true(all(preds$predicted_class %in% c(0, 1)))
+  expect_equal(preds$predicted_class, as.numeric(preds$predicted >= 0.5))
+})
+
+test_that("check_krr_inputs returns TRUE on clean binary data", {
+  result <- capture.output(
+    ok <- check_krr_inputs(.train_bin, .test_bin, .dist_full,
+                           word_col = "word", outcome_col = "y", link = "binary")
+  )
+  expect_true(ok)
+})
+
+test_that("check_krr_inputs returns FALSE when binary link sees non-0/1 values", {
+  train_prop   <- .train
+  capture.output(
+    ok <- check_krr_inputs(train_prop, NULL, .train_dist,
+                           word_col = "word", outcome_col = "p", link = "binary")
+  )
+  expect_false(ok)
 })

@@ -43,6 +43,12 @@ Additional raw files in `dat/`:
 - `lakok_forms.tsv` — unique lemma forms (training + test) used for phonological distance computation via JANET
 - `siptar_torkenczy_toth_racz_hungarian.tsv` — Hungarian phonological feature matrix (segments × features such as cons, son, cont, labial, coronal, etc.)
 
+## Outcome types (`link`)
+
+- `"identity"` (default) — continuous outcome, fit directly (like `lm`)
+- `"logit"` — outcome is a proportion in `[0, 1]` (e.g. p(regular) across a word's occurrences); fit in log-odds space, predictions are back-transformed probabilities
+- `"binary"` — outcome is a genuine 0/1 label for a single item (e.g. "is this a proper noun"), not a proportion; fits in log-odds space like `"logit"`, but `check_krr_inputs()` requires outcomes to be exactly 0/1, and `train_krr()`/`predict_krr()` add a `predicted_class` column thresholded at `threshold` (default 0.5). Hyperparameter tuning defaults to `criterion = "rmse"` on the log-odds scale; pass `criterion = "accuracy"` to tune directly on classification accuracy instead (a warning is printed otherwise).
+
 ## Functions
 
 - `train_krr()` — LOO-tuned training: grid search over sigma (RBF bandwidth) and alpha (ridge regularisation), returns best hyperparameters, full tuning grid, and LOO predictions

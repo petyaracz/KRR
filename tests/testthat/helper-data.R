@@ -27,3 +27,14 @@
 )
 
 .dist_full <- dplyr::bind_rows(.train_dist, .cross_dist)
+
+# Binary-label fixtures (same words/distances, 0/1 outcome instead of a proportion)
+.train_bin <- tibble::tibble(
+  word = c("aa", "ab", "ba", "bb"),
+  y    = c(0,    0,    1,    1)
+)
+
+.test_bin <- tibble::tibble(
+  word = c("ac", "bc"),
+  y    = c(0,    1)
+)

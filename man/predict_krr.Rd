@@ -12,8 +12,9 @@ predict_krr(
   outcome_col,
   sigma,
   alpha,
-  link = c("identity", "logit"),
-  epsilon = 0.001
+  link = c("identity", "logit", "binary"),
+  epsilon = 0.001,
+  threshold = 0.5
 )
 }
 \arguments{
@@ -32,13 +33,17 @@ train–train and test–train word pairs.}
 
 \item{alpha}{Ridge regularisation parameter.}
 
-\item{link}{\code{"identity"} (default) or \code{"logit"}.}
+\item{link}{\code{"identity"} (default), \code{"logit"}, or \code{"binary"}.}
 
-\item{epsilon}{Clamping bound for logit link. Default 0.001.}
+\item{epsilon}{Clamping bound for logit/binary link. Default 0.001.}
+
+\item{threshold}{Cutoff applied to probability predictions to obtain
+\code{predicted_class} when \code{link = "binary"}. Default 0.5.}
 }
 \value{
-A tibble with \code{word}, \code{predicted} (original scale), and \code{observed}
-(if \code{outcome_col} exists in \code{test_data}).
+A tibble with \code{word}, \code{predicted} (original scale), \code{observed}
+(if \code{outcome_col} exists in \code{test_data}), and \code{predicted_class}
+(if \code{link = "binary"}).
 }
 \description{
 Predict on new data using a trained KRR specification.

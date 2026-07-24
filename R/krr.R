@@ -19,6 +19,12 @@
 # With link = "logit", targets are logit-transformed before fitting and
 # predictions are inverse-logit-transformed back. Exact 0/1 targets are
 # clamped to [epsilon, 1 - epsilon] before transformation.
+#
+# Binary link note: for a genuine 0/1 label (as opposed to a proportion),
+# link = "binary" reuses the logit transform to fit in log-odds space, but
+# check_krr_inputs() requires outcomes to be exactly 0/1 (the reverse of the
+# logit check), and predictions gain a predicted_class column thresholded
+# at `threshold` (default 0.5).
 
 # -- internal helpers --------------------------------------------------------
 
@@ -56,7 +62,7 @@
 
 #' Apply link transformation to target vector.
 .apply_link <- function(target, link, epsilon) {
-  if (link == "logit") {
+  if (link == "logit" || link == "binary") {
     target <- pmax(pmin(target, 1 - epsilon), epsilon)
     target <- qlogis(target)
   }
@@ -65,7 +71,7 @@
 
 #' Apply inverse link to predictions.
 .apply_inverse_link <- function(predictions, link) {
-  if (link == "logit") {
+  if (link == "logit" || link == "binary") {
     predictions <- plogis(predictions)
   }
   predictions
@@ -81,21 +87,29 @@
 #'   (including self-pairs) for words in `data`.
 #' @param word_col   Name of the word/lemma column (string).
 #' @param outcome_col Name of the outcome column (string).
-#' @param link       `"identity"` (default) or `"logit"`.
-#' @param criterion  `"rmse"` (default) or `"r"`. Tuning metric for LOO.
-#'   RMSE is computed in the link-transformed space.
-#'   `"r"` uses Pearson correlation in link-transformed space.
-#' @param epsilon    Clamping bound for logit link. Default 0.001.
+#' @param link       `"identity"` (default), `"logit"`, or `"binary"`.
+#'   `"binary"` is for a genuine 0/1 label rather than a proportion; it fits
+#'   in log-odds space like `"logit"` but expects exact 0/1 outcomes and adds
+#'   a thresholded `predicted_class` column to `predictions`.
+#' @param criterion  `"rmse"` (default), `"r"`, or `"accuracy"`. Tuning metric
+#'   for LOO. RMSE and `"r"` (Pearson correlation) are computed in the
+#'   link-transformed space. `"accuracy"` compares LOO predictions
+#'   thresholded at `threshold` against the raw outcome, and is only
+#'   meaningful for `link = "binary"`.
+#' @param epsilon    Clamping bound for logit/binary link. Default 0.001.
+#' @param threshold  Cutoff applied to probability predictions to obtain
+#'   `predicted_class` and to compute the `"accuracy"` criterion when
+#'   `link = "binary"`. Default 0.5.
 #' @param sigma_grid Numeric vector of sigma values to try.
 #' @param alpha_grid Numeric vector of alpha (regularisation) values to try.
 #'
 #' @return A list with components:
 #'   - `sigma`, `alpha`: best hyperparameters
-#'   - `best_score`: best tuning metric value (RMSE or r, in transformed space)
+#'   - `best_score`: best tuning metric value (RMSE, r, or accuracy)
 #'   - `tuning`: tibble of full tuning grid with score values
 #'   - `predictions`: tibble with word, observed (original scale),
-#'     and predicted_loo (original scale)
-#'   - `link`, `criterion`, `epsilon`: stored for reference
+#'     predicted_loo (original scale), and predicted_class (if `link = "binary"`)
+#'   - `link`, `criterion`, `epsilon`, `threshold`: stored for reference
 #'
 #' @export
 #' @examples
@@ -105,9 +119,10 @@
 #' m <- train_krr(train, dist, word_col = "lemma", outcome_col = "p", link = "logit")
 #' }
 train_krr <- function(data, dist_df, word_col, outcome_col,
-                      link = c("identity", "logit"),
-                      criterion = c("rmse", "r"),
+                      link = c("identity", "logit", "binary"),
+                      criterion = c("rmse", "r", "accuracy"),
                       epsilon = 0.001,
+                      threshold = 0.5,
                       sigma_grid = c(1, 2, 3, 4, 5, 8, 16, 32, 64),
                       alpha_grid = c(1, 10, 100, 1000)) {
 
@@ -116,6 +131,11 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
 
   link <- match.arg(link)
   criterion <- match.arg(criterion)
+
+  if (link == "binary" && criterion != "accuracy") {
+    warning("link = \"binary\" with criterion = \"", criterion,
+             "\": consider criterion = \"accuracy\" to tune directly on classification performance.")
+  }
 
   words <- data[[word_col]]
   target_raw <- data[[outcome_col]]
@@ -129,8 +149,11 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
         loo_pred <- .loo_krr(.x, .y, dist_matrix, target)
         if (criterion == "rmse") {
           sqrt(mean((target - loo_pred)^2))
-        } else {
+        } else if (criterion == "r") {
           cor(target, loo_pred, method = "pearson")
+        } else {
+          loo_pred_class <- as.numeric(.apply_inverse_link(loo_pred, link) >= threshold)
+          mean(loo_pred_class == target_raw)
         }
       })
     )
@@ -144,19 +167,25 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
   loo_pred <- .loo_krr(best$sigma, best$alpha, dist_matrix, target)
   loo_pred_out <- .apply_inverse_link(loo_pred, link)
 
+  predictions <- tibble(
+    !!word_col  := words,
+    observed    = target_raw,
+    predicted_loo = loo_pred_out
+  )
+  if (link == "binary") {
+    predictions <- mutate(predictions, predicted_class = as.numeric(predicted_loo >= threshold))
+  }
+
   list(
     sigma      = best$sigma,
     alpha      = best$alpha,
     best_score = best$score,
     tuning     = tuning,
-    predictions = tibble(
-      !!word_col  := words,
-      observed    = target_raw,
-      predicted_loo = loo_pred_out
-    ),
+    predictions = predictions,
     link      = link,
     criterion = criterion,
-    epsilon   = epsilon
+    epsilon   = epsilon,
+    threshold = threshold
   )
 }
 
@@ -170,11 +199,14 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
 #' @param outcome_col Name of the outcome column (string).
 #' @param sigma       RBF kernel bandwidth.
 #' @param alpha       Ridge regularisation parameter.
-#' @param link        `"identity"` (default) or `"logit"`.
-#' @param epsilon     Clamping bound for logit link. Default 0.001.
+#' @param link        `"identity"` (default), `"logit"`, or `"binary"`.
+#' @param epsilon     Clamping bound for logit/binary link. Default 0.001.
+#' @param threshold   Cutoff applied to probability predictions to obtain
+#'   `predicted_class` when `link = "binary"`. Default 0.5.
 #'
-#' @return A tibble with `word`, `predicted` (original scale), and `observed`
-#'   (if `outcome_col` exists in `test_data`).
+#' @return A tibble with `word`, `predicted` (original scale), `observed`
+#'   (if `outcome_col` exists in `test_data`), and `predicted_class`
+#'   (if `link = "binary"`).
 #'
 #' @export
 #' @examples
@@ -186,8 +218,9 @@ train_krr <- function(data, dist_df, word_col, outcome_col,
 predict_krr <- function(train_data, test_data, dist_df,
                         word_col, outcome_col,
                         sigma, alpha,
-                        link = c("identity", "logit"),
-                        epsilon = 0.001) {
+                        link = c("identity", "logit", "binary"),
+                        epsilon = 0.001,
+                        threshold = 0.5) {
 
   if (!outcome_col %in% names(train_data)) stop(sprintf("Column '%s' not found in data.", outcome_col))
   if (!word_col %in% names(train_data)) stop(sprintf("Column '%s' not found in data.", word_col))
@@ -220,6 +253,10 @@ predict_krr <- function(train_data, test_data, dist_df,
     out <- out |> mutate(observed = test_data[[outcome_col]])
   }
 
+  if (link == "binary") {
+    out <- out |> mutate(predicted_class = as.numeric(predicted >= threshold))
+  }
+
   out
 }
 
@@ -234,7 +271,7 @@ predict_krr <- function(train_data, test_data, dist_df,
 #' @param dist       Long-format distance data frame (`word1`, `word2`, `phon_dist`).
 #' @param word_col   Name of the word column (string).
 #' @param outcome_col Name of the outcome column (string).
-#' @param link       `"identity"` or `"logit"`.
+#' @param link       `"identity"`, `"logit"`, or `"binary"`.
 #'
 #' @return `TRUE` invisibly if all checks pass, `FALSE` otherwise.
 #'
@@ -319,6 +356,14 @@ check_krr_inputs <- function(train, test = NULL, dist,
       ok <- FALSE
       cat(sprintf("WARNING: logit link but outcome has %d zeros and %d ones (-> clamped by epsilon during fitting)\n",
                   n_zero, n_one))
+    }
+  }
+
+  if (link == "binary") {
+    n_other <- sum(!y %in% c(0, 1), na.rm = TRUE)
+    if (n_other > 0) {
+      ok <- FALSE
+      cat(sprintf("FAIL: binary link but %d outcome values are not exactly 0 or 1\n", n_other))
     }
   }
 
